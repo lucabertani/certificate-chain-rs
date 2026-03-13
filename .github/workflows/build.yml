@@ -1,0 +1,135 @@
+name: Build & Release Rust Project
+
+on:
+  workflow_dispatch:
+
+env:
+  BIN_NAME: certificate-chain-rs
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build on Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Build binary
+        run: cargo build --release
+
+      - name: Package binary (tar.gz)
+        run: |
+          mkdir -p dist
+          cp target/release/${{ env.BIN_NAME }} dist/
+          tar -czvf ${{ env.BIN_NAME }}-linux.tar.gz -C dist ${{ env.BIN_NAME }}
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-linux
+          path: ${{ env.BIN_NAME }}-linux.tar.gz
+
+  build-windows:
+    name: Build on Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Build binary
+        run: cargo build --release
+
+      - name: Package binary (zip)
+        run: |
+          mkdir dist
+          copy target\release\${{ env.BIN_NAME }}.exe dist\
+          powershell Compress-Archive -Path dist\${{ env.BIN_NAME }}.exe -DestinationPath ${{ env.BIN_NAME }}-windows.zip
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-windows
+          path: ${{ env.BIN_NAME }}-windows.zip
+
+  build-macos:
+    name: Build on macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Build binary
+        run: cargo build --release
+
+      - name: Package binary (tar.gz)
+        run: |
+          mkdir -p dist
+          cp target/release/${{ env.BIN_NAME }} dist/
+          tar -czvf ${{ env.BIN_NAME }}-macos.tar.gz -C dist ${{ env.BIN_NAME }}
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-macos
+          path: ${{ env.BIN_NAME }}-macos.tar.gz
+
+  release:
+    name: Create Release
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set release tag
+        id: tag
+        run: echo "tag=release-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+
+      - name: Download Linux archive
+        uses: actions/download-artifact@v4
+        with:
+          name: archive-linux
+          path: artifacts/
+
+      - name: Download Windows archive
+        uses: actions/download-artifact@v4
+        with:
+          name: archive-windows
+          path: artifacts/
+
+      - name: Download macOS archive
+        uses: actions/download-artifact@v4
+        with:
+          name: archive-macos
+          path: artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Certificate chain rs ${{ steps.tag.outputs.tag }}
+          files: |
+            artifacts/${{ env.BIN_NAME }}-linux.tar.gz
+            artifacts/${{ env.BIN_NAME }}-windows.zip
+            artifacts/${{ env.BIN_NAME }}-macos.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
