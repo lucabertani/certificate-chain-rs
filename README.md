@@ -1,4 +1,4 @@
-# test-openssl-chain
+# certificate-chain-rs
 
 This project uses the Rust `openssl` crate, which on Windows needs a local OpenSSL installation and the correct environment variables pointing to headers and libraries.
 
