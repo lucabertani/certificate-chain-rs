@@ -1,16 +1,14 @@
 # certificate-chain-rs
 
-This project uses the Rust `openssl` crate, which on Windows needs a local OpenSSL installation and the correct environment variables pointing to headers and libraries.
+This project uses the Rust `openssl` crate and, on Windows, requires a local OpenSSL installation plus the correct environment variables pointing to headers and libraries.
 
 ## 1. Install OpenSSL on Windows
 
-Open a PowerShell terminal and install OpenSSL with `winget`:
+Open a PowerShell terminal and install OpenSSL with Chocolatey:
 
 ```powershell
-winget install openssl
+choco install openssl -y
 ```
-
-If `winget` is not available or the package is not found, install a 64-bit OpenSSL build manually and note the installation folder.
 
 Typical installation path:
 
@@ -18,67 +16,34 @@ Typical installation path:
 C:\Program Files\OpenSSL-Win64
 ```
 
-## 2. Verify the installation folders
+## 2. Configure the current terminal
 
-Before setting environment variables, check that these folders really exist on your machine:
-
-```powershell
-Get-ChildItem "C:\Program Files\OpenSSL-Win64"
-Get-ChildItem "C:\Program Files\OpenSSL-Win64\include"
-Get-ChildItem "C:\Program Files\OpenSSL-Win64\lib"
-```
-
-For some OpenSSL distributions, the libraries are under:
-
-```text
-C:\Program Files\OpenSSL-Win64\lib\VC\x64\MT
-```
-
-That is the layout used by this project.
-
-## 3. Set environment variables for the current terminal
-
-If you only want the configuration for the current PowerShell session, run:
+For the current PowerShell session:
 
 ```powershell
 $env:OPENSSL_DIR="C:\Program Files\OpenSSL-Win64"
 $env:OPENSSL_INCLUDE_DIR="C:\Program Files\OpenSSL-Win64\include"
-$env:OPENSSL_LIB_DIR="C:\Program Files\OpenSSL-Win64\lib\VC\x64\MT"
+$env:OPENSSL_LIB_DIR="C:\Program Files\OpenSSL-Win64\lib\VC\x64\MD"
+$env:PATH="C:\Program Files\OpenSSL-Win64\bin;$env:PATH"
 ```
 
-These variables mean:
+If `lib\VC\x64\MD` does not exist in your installation, check `lib\VC\x64\MT` or `lib` and adjust `OPENSSL_LIB_DIR` accordingly.
 
-- `OPENSSL_DIR`: root folder of the OpenSSL installation
-- `OPENSSL_INCLUDE_DIR`: folder containing the C header files
-- `OPENSSL_LIB_DIR`: folder containing the `.lib` files used at build time
+## 3. Build
 
-## 4. Make the variables permanent
-
-If you want them available in every new terminal, define them as user environment variables.
-
-PowerShell example:
+From the project root:
 
 ```powershell
-[System.Environment]::SetEnvironmentVariable("OPENSSL_DIR", "C:\Program Files\OpenSSL-Win64", "User")
-[System.Environment]::SetEnvironmentVariable("OPENSSL_INCLUDE_DIR", "C:\Program Files\OpenSSL-Win64\include", "User")
-[System.Environment]::SetEnvironmentVariable("OPENSSL_LIB_DIR", "C:\Program Files\OpenSSL-Win64\lib\VC\x64\MT", "User")
+cargo build --release
 ```
 
-After that, close and reopen the terminal or restart VS Code.
-
-If you prefer a GUI tool, you can also create the same variables from Windows System Settings or with PowerToys Environment Variables.
-
-## 5. Validate the configuration
-
-From the project root, run:
+Or, for a faster validation:
 
 ```powershell
 cargo check
 ```
 
-If the configuration is correct, the project should compile without `libssl` / `libcrypto` lookup errors.
-
-## 6. Run the program
+## Run the program
 
 The executable expects two command-line arguments:
 
@@ -94,7 +59,6 @@ cargo run -- --help
 
 ## Troubleshooting
 
-- If you get `could not find native static library 'libssl'`, `OPENSSL_LIB_DIR` is probably wrong.
-- If you get header-related errors, verify `OPENSSL_INCLUDE_DIR`.
-- If you installed a different OpenSSL distribution, the library path may be different from `lib\VC\x64\MT`.
-- If `cargo check` works in one terminal but not in another, the variables were probably set only for the current session.
+- If you get `Could not find directory of OpenSSL installation`, verify `OPENSSL_DIR`, `OPENSSL_INCLUDE_DIR`, and `OPENSSL_LIB_DIR`.
+- If you get `could not find native static library 'libssl'`, your `OPENSSL_LIB_DIR` probably points to the wrong subdirectory.
+- The GitHub Actions Windows job installs OpenSSL automatically with Chocolatey and sets these variables before running `cargo build --release`.
