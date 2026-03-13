@@ -44,20 +44,55 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install OpenSSL
-        shell: pwsh
-        run: choco install openssl -y
-
-      - name: Configure OpenSSL environment
+      - name: Install and configure OpenSSL
         shell: pwsh
         run: |
-          $opensslDir = Join-Path $env:ProgramFiles 'OpenSSL-Win64'
-          if (-not (Test-Path $opensslDir)) {
-            $opensslDir = Join-Path ${env:ProgramFiles(x86)} 'OpenSSL-Win32'
+          choco install openssl -y --no-progress
+
+          $searchRoots = @(
+            (Join-Path $env:ProgramFiles 'OpenSSL-Win64')
+            (Join-Path $env:ProgramFiles 'OpenSSL')
+            (Join-Path ${env:ProgramFiles(x86)} 'OpenSSL-Win32')
+            (Join-Path $env:ChocolateyInstall 'lib')
+            'C:\ProgramData\chocolatey\lib'
+          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+
+          $opensslExe = $null
+          foreach ($root in $searchRoots) {
+            $opensslExe = Get-ChildItem -Path $root -Filter openssl.exe -File -Recurse -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -notmatch '\\tools\\' -or $_.FullName -match 'OpenSSL' } |
+              Select-Object -First 1 -ExpandProperty FullName
+
+            if ($opensslExe) {
+              break
+            }
           }
 
-          if (-not (Test-Path $opensslDir)) {
-            throw "OpenSSL installation directory not found."
+          if (-not $opensslExe) {
+            Write-Host 'OpenSSL search roots:'
+            $searchRoots | ForEach-Object { Write-Host " - $_" }
+            throw 'OpenSSL executable not found after Chocolatey installation.'
+          }
+
+          $opensslBinDir = Split-Path $opensslExe -Parent
+          $opensslDirCandidates = @(
+            (Split-Path $opensslBinDir -Parent)
+            $opensslBinDir
+          ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+
+          $opensslDir = $opensslDirCandidates |
+            Where-Object {
+              (Test-Path (Join-Path $_ 'include')) -and (
+                (Test-Path (Join-Path $_ 'lib')) -or
+                (Test-Path (Join-Path $_ 'lib\VC\x64\MD')) -or
+                (Test-Path (Join-Path $_ 'lib\VC\x64\MT')) -or
+                (Test-Path (Join-Path $_ 'lib\VC\static'))
+              )
+            } |
+            Select-Object -First 1
+
+          if (-not $opensslDir) {
+            throw "OpenSSL root directory not found for executable: $opensslExe"
           }
 
           $libCandidates = @(
@@ -72,10 +107,14 @@ jobs:
             throw "OpenSSL library directory not found under $opensslDir."
           }
 
+          Write-Host "Using OpenSSL executable: $opensslExe"
+          Write-Host "Using OPENSSL_DIR: $opensslDir"
+          Write-Host "Using OPENSSL_LIB_DIR: $opensslLibDir"
+
           "OPENSSL_DIR=$opensslDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "OPENSSL_INCLUDE_DIR=$(Join-Path $opensslDir 'include')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "OPENSSL_LIB_DIR=$opensslLibDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          (Join-Path $opensslDir 'bin') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $opensslBinDir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
