@@ -1,35 +1,18 @@
 # certificate-chain-rs
 
-This project uses the Rust `openssl` crate and, on Windows, requires a local OpenSSL installation plus the correct environment variables pointing to headers and libraries.
+This project uses the Rust `openssl` crate with the `vendored` feature enabled. On Windows, OpenSSL is compiled from source during the Rust build, so you do not need a separate local OpenSSL installation. You do need Perl available in `PATH` because the vendored OpenSSL build uses it during configuration.
 
-## 1. Install OpenSSL on Windows
+## 1. Install Perl on Windows
 
-Open a PowerShell terminal and install OpenSSL with Chocolatey:
-
-```powershell
-choco install openssl -y
-```
-
-Typical installation path:
-
-```text
-C:\Program Files\OpenSSL-Win64
-```
-
-## 2. Configure the current terminal
-
-For the current PowerShell session:
+Open a PowerShell terminal and install Strawberry Perl:
 
 ```powershell
-$env:OPENSSL_DIR="C:\Program Files\OpenSSL-Win64"
-$env:OPENSSL_INCLUDE_DIR="C:\Program Files\OpenSSL-Win64\include"
-$env:OPENSSL_LIB_DIR="C:\Program Files\OpenSSL-Win64\lib\VC\x64\MD"
-$env:PATH="C:\Program Files\OpenSSL-Win64\bin;$env:PATH"
+winget install --id StrawberryPerl.StrawberryPerl --exact --accept-package-agreements --accept-source-agreements --disable-interactivity
 ```
 
-If `lib\VC\x64\MD` does not exist in your installation, check `lib\VC\x64\MT` or `lib` and adjust `OPENSSL_LIB_DIR` accordingly.
+After installation, open a new terminal so `perl` is available in `PATH`.
 
-## 3. Build
+## 2. Build
 
 From the project root:
 
@@ -37,13 +20,15 @@ From the project root:
 cargo build --release
 ```
 
-Or, for a faster validation:
+For a faster validation:
 
 ```powershell
 cargo check
 ```
 
-## Run the program
+On Windows MSVC, the repository already enables static CRT linking through `.cargo/config.toml`, so local `cargo build` uses `-Ctarget-feature=+crt-static` automatically.
+
+## 3. Run the program
 
 The executable expects two command-line arguments:
 
@@ -59,6 +44,6 @@ cargo run -- --help
 
 ## Troubleshooting
 
-- If you get `Could not find directory of OpenSSL installation`, verify `OPENSSL_DIR`, `OPENSSL_INCLUDE_DIR`, and `OPENSSL_LIB_DIR`.
-- If you get `could not find native static library 'libssl'`, your `OPENSSL_LIB_DIR` probably points to the wrong subdirectory.
-- The GitHub Actions Windows job installs OpenSSL automatically with Chocolatey and sets these variables before running `cargo build --release`.
+- If you get `Command 'perl' not found`, install Strawberry Perl with the `winget` command above and reopen the terminal.
+- If the build still fails right after installing Perl, verify it is available with `perl -v` in a new terminal.
+- The GitHub Actions Windows job should install the required prerequisites before running `cargo build --release`.
