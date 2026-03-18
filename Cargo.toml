@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-openssl = "0.10"
+openssl = { version = "0.10", features = ["vendored"] }
 rustls-native-certs = "0.8"
